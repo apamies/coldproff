@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ColdProff NFC Reader</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📱 ColdProff NFC Reader</h1>
+            <p>Lee datos de sensores de temperatura con geolocalización</p>
+        </header>
+
+        <div class="main-content">
+            <!-- NFC Section -->
+            <section class="nfc-section">
+                <h2>1️⃣ Leer etiqueta NFC</h2>
+                <button id="nfc-read-btn" class="btn btn-primary">
+                    📡 Toca la etiqueta con el móvil
+                </button>
+                <div id="nfc-status" class="status"></div>
+                <div id="nfc-error" class="error"></div>
+            </section>
+
+            <!-- Data Preview Section -->
+            <section class="data-section" style="display:none;" id="data-section">
+                <h2>2️⃣ Datos recibidos</h2>
+                <div id="data-preview" class="data-preview">
+                    <p id="sensor-id">Sensor ID: -</p>
+                    <p id="record-count">Registros: -</p>
+                    <div id="records-table"></div>
+                </div>
+            </section>
+
+            <!-- Geolocation Section -->
+            <section class="geoloc-section" style="display:none;" id="geoloc-section">
+                <h2>3️⃣ Geolocalización</h2>
+                <div id="location-info" class="location-info"></div>
+                <div id="map" class="map-container"></div>
+            </section>
+
+            <!-- Upload Section -->
+            <section class="upload-section" style="display:none;" id="upload-section">
+                <h2>4️⃣ Guardar datos</h2>
+                <button id="upload-btn" class="btn btn-success">
+                    💾 Guardar en servidor
+                </button>
+                <div id="upload-status" class="status"></div>
+            </section>
+        </div>
+
+        <footer>
+            <p>ColdProff v1.0 | <a href="/api/celldata">Ver datos guardados</a></p>
+        </footer>
+    </div>
+
+    <script src="nfc-reader.js"></script>
+</body>
+</html>
