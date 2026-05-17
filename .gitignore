@@ -1,0 +1,40 @@
+# Firmware build artifacts
+firmware/**/*.o
+firmware/**/*.elf
+firmware/**/*.bin
+firmware/**/*.hex
+firmware/**/*.map
+firmware/**/build/
+firmware/**/.dep/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# CAD files (keep sources, exclude compiled)
+hardware/**/*.kicad_sch~
+hardware/**/*.kicad_pcb~
+hardware/**/*.kicad_pcb-bak
+mechanical/**/*.FCStd~
+mechanical/**/*.FCStd1
+
+# Manufacturing (keep Gerbers, ignore temp exports)
+hardware/gerbers/**/*.tmp
+hardware/gerbers/**/*.gbr~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Credentials
+.env
+*.key
+*.pem
+credentials.json
+
+# Temporary
+*.tmp
+.cache/
