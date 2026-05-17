@@ -7,11 +7,11 @@ Etiqueta adhesiva desechable con sensor de temperatura, geolocalización por Cel
 - **Hardware**: BC660K-GL NB-IoT SoC con QuecOpen (programable embebido)
 - **Sensor**: TMP117 ±0.1°C
 - **Almacenamiento**: ST25DV64K NFC + EEPROM 8KB
-- **Batería**: CR2032 (220 mAh)
-- **Duración**: 7 días de lecturas cada 3h
+- **Batería**: LR936 (70 mAh) — 26.7x margen de seguridad, 71% más pequeña
+- **Duración**: 7 días de lecturas cada 3h (consumo real: 2.62 mAh)
 - **Geolocalización**: Sin SIM, sin GPS — sólo Cell ID + Google/HERE API
 - **PCB**: Flexible (Kapton) 85×55mm, antenas embedded (NFC + NB-IoT)
-- **Costo estimado**: €6.10–6.30/unit
+- **Costo estimado**: €5.98–6.18/unit (ahorro €0.12 por unidad con LR936)
 
 ## Estructura del repositorio
 

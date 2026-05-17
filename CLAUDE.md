@@ -100,6 +100,16 @@ Never commit `.env` with real keys.
 - [ ] PSM sleep 800nA verified
 - [ ] 7-day battery life simulation
 
+## Battery — LR936 (Sony SR936)
+
+**Energy analysis** (7 days @ 1 reading per 3h):
+- Actual consumption: 2.62 mAh total
+- Safety margin: **26.7x** with LR936 (70mAh)
+- Dimensions: 9.5 × 3.6mm (71% smaller than CR2032)
+- Cost: €0.06 per unit (€0.12 savings vs CR2032)
+
+**Note**: PSM sleep 800nA means 99% of time in ultra-low power mode. LR936 is overkill but provides reliability margin.
+
 ## Mechanical
 
 - Flexible PCB adhesive label (85×55mm, tarjeta-like)
