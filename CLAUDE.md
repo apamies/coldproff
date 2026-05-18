@@ -11,7 +11,7 @@
 - CR2032 (220mAh)
 - PCB flexible (Kapton) con antenas embedded
 
-**Geolocalización**: Sin SIM. Modo LIMSRV → AT+QENG → Cell ID (MCC/MNC/LAC/CID) → Google Geolocation API (~337m LTE en Cambrils).
+**Geolocalización**: Sin SIM. Modo LIMSRV → AT+QENG → Cell ID (MCC/MNC/LAC/CID) → Google Geolocation API. 
 
 **Datos a guardar en ST25DV64K** (7 días):
 - Timestamp
@@ -66,6 +66,10 @@ sscanf(response, "+QENG: \"servingcell\",\"FDD\",%d,%d,%x,%*d,%*d,%*d,%*d,%*d,%x
 6. `include/*.h` — Headers
 
 **Build**: Quectel SDK + CMake or provided Makefile
+
+##sever
+Website to run on mobile to be launched using NFC antena that encodes in URL the temperaure data and cellId data. The website calls Geolocalization APIs to retrieve geoloclizations at different moments
+
 
 ## Hardware checklist
 

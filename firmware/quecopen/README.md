@@ -1,4 +1,9 @@
-# ColdProff Firmware — BC660K-GL QuecOpen
+# ColdProff Firmware — BC660K-GL QuecOpen [DEPRECATED — Rev A]
+
+> ⚠️ **DEPRECATED**: Este directorio corresponde a Rev A (BC660K-GL + QuecOpen).  
+> El proyecto ha migrado a **Rev B**: BC65 + STM32L010F4P6.  
+> El firmware activo está en [`firmware/stm32/`](../stm32/).  
+> Este directorio se mantiene solo como referencia histórica.
 
 Firmware embebido para el BC660K-GL NB-IoT con QuecOpen (FreeRTOS).
 
@@ -248,13 +253,60 @@ Response:
 }
 ```
 
+## Timestamps — Estrategia sin RTC externo
+
+No se usa ningún chip RTC externo. El BC660K-GL tiene RTC interno que se sincroniza
+automáticamente desde la red LTE, incluso en modo LIMSRV (sin SIM) vía SIB16.
+
+### Fuente de tiempo
+
+```c
+// 1. AT+QLTS=1  → hora de red LTE (preferida, sincronizada automáticamente)
+// 2. AT+CCLK?   → RTC interno (fallback si no hay tiempo de red)
+```
+
+`modem_get_unix_time()` en `modem.c` prueba en ese orden y devuelve Unix UTC.
+Si ninguno está disponible (primer arranque sin red), devuelve `timestamp = 0`.
+
+### Extrapolación cuando timestamp = 0
+
+Si el timestamp almacenado en un registro es 0 (RTC no inicializado), el servidor
+puede reconstruir la línea de tiempo completa usando:
+
+```
+T(N) = T_last - (total_readings - N) × interval
+```
+
+Donde:
+- `T_last` = Unix timestamp en el momento en que el teléfono lee el NFC (lo sabe el teléfono)
+- `N` = índice del registro (0-based, guardado en `measurement_count`)
+- `interval` = 10800 s (3 horas)
+
+**Ejemplo**: teléfono lee el tag a las 15:00. La etiqueta lleva 20 lecturas.
+La lectura #5 fue: `15:00 - (20 - 5) × 3h = 15:00 - 45h = 18:00 de hace 2 días`.
+
+Esta extrapolación es exacta porque el PSM timer es preciso (±2s en 3h).
+
+### EEPROM record layout (actualizado)
+
+```
+Byte  0- 3: Timestamp Unix UTC (uint32_t LE) — 0 si no disponible
+Byte  4- 5: Temperatura raw TMP117 (int16_t LE, LSB = 7.8125 m°C)
+Byte  6- 7: MCC (uint16_t LE)
+Byte  8- 9: MNC (uint16_t LE)
+Byte 10-11: TAC (uint16_t LE, convertido de hex)
+Byte 12-15: Cell ID (uint32_t LE, convertido de hex)
+Byte 16-17: RSRP en dBm (int16_t LE)
+Total: 18 bytes/registro × 56 lecturas = 1008 bytes (de 7936 disponibles)
+```
+
 ## TODO
 
-- [ ] Implementar `geoloc.c` (codificación JSON/URL)
-- [ ] Integración de timestamp real (usar RTC o QTIME)
+- [x] Implementar `geoloc.c` (codificación JSON/URL)
+- [x] Integración de timestamp real (AT+QLTS=1 desde red LTE)
+- [x] NDEF Type 4 Tag encoding para NFC
 - [ ] Manejo de errores de I2C (reintentos)
 - [ ] Configuración de antena NB-IoT (tuning)
-- [ ] NDEF Type 4 Tag encoding para NFC
 - [ ] Tests unitarios
 - [ ] Optimización de consumo (verificar PSM 800nA)
 

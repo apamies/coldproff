@@ -133,52 +133,141 @@ int modem_check_registration(void) {
 
 int modem_read_serving_cell(CellData_t *cell_data) {
     char response[512];
-    int rat;
-    char rat_str[16];
-    int earfcn, pci, rsrp_val;
 
     if (at_cmd_send("AT+QENG=\"servingcell\"", response, sizeof(response), 5000) != 0) {
         QL_LOG_ERR(TAG, "QENG command failed");
         return -1;
     }
 
-    // Parse response: +QENG: "servingcell","FDD",mcc,mnc,cid,pcid,earfcn,...,lac,...
-    // Example: +QENG: "servingcell","FDD",214,03,6936965,235,3050,7,5,5,8CA,...
-    //
-    // Fields (0-indexed):
-    // 0: "servingcell"
-    // 1: "FDD" (or other RAT)
-    // 2: MCC (214 = Spain)
-    // 3: MNC (03 = Orange)
-    // 4: CID (hex string "6936965")
-    // 5: PCID (decimal)
-    // 6: EARFCN (decimal)
-    // 12: LAC/TAC (hex string "8CA")
+    // Response (LTE FDD example):
+    // +QENG: "servingcell","FDD",214,03,6936965,235,3050,7,5,5,8CA,18,-98,-11,-72,7,59,5
+    //  tok:  [0]           [1]   [2] [3][4]      [5] [6]  ...     [10] [11][12]
+    //  field:              RAT   MCC MNC CID      ...             TAC       RSRP
 
-    int mcc, mnc;
-    char cid_hex[16], tac_hex[16];
+    // Tokenize on commas into a flat array
+    char buf[512];
+    strncpy(buf, response, sizeof(buf) - 1);
+    buf[sizeof(buf) - 1] = '\0';
 
-    // Simple parser (robust version should use regex or proper tokenizer)
-    int n = sscanf(response,
-                   "+QENG: \"servingcell\",\"%15[^\"]\"%*[^,],%d,%d,%15[^,],%d,%d,%*[^,],%*[^,],%*[^,],%15[^,]",
-                   rat_str, &mcc, &mnc, cid_hex, &pci, &earfcn, tac_hex);
+    char *tok[25];
+    int   ntok = 0;
+    char *p = buf;
+    char *t = strtok(p, ",");
+    while (t && ntok < 25) {
+        // strip leading/trailing spaces and quotes
+        while (*t == ' ' || *t == '"') t++;
+        char *end = t + strlen(t) - 1;
+        while (end > t && (*end == ' ' || *end == '"' || *end == '\r' || *end == '\n')) *end-- = '\0';
+        tok[ntok++] = t;
+        t = strtok(NULL, ",");
+    }
 
-    if (n < 5) {
-        QL_LOG_ERR(TAG, "Failed to parse QENG (parsed %d fields)", n);
-        QL_LOG_DEBUG(TAG, "Raw response: %s", response);
+    // Need at least 13 tokens: [0]=+QENG: "servingcell" [1]=RAT [2]=MCC [3]=MNC
+    //   [4]=CID [5..9]=skip [10]=TAC [11]=skip [12]=RSRP
+    if (ntok < 13) {
+        QL_LOG_ERR(TAG, "QENG: too few tokens (%d)", ntok);
+        QL_LOG_DEBUG(TAG, "Raw: %s", response);
         return -1;
     }
 
-    // CRITICAL: Cell IDs are HEXADECIMAL (even if only contain 0-9)
-    cell_data->cell_id = strtoul(cid_hex, NULL, 16);
-    cell_data->tac = strtoul(tac_hex, NULL, 16);
-    cell_data->mcc = mcc;
-    cell_data->mnc = mnc;
-    cell_data->rsrp = rsrp_val;  // TODO: extract from full QENG response
+    // CRITICAL: CID and TAC are hexadecimal strings (Quectel reports in hex)
+    cell_data->mcc     = (uint16_t)atoi(tok[2]);
+    cell_data->mnc     = (uint16_t)atoi(tok[3]);
+    cell_data->cell_id = (uint32_t)strtoul(tok[4], NULL, 16);
+    cell_data->tac     = (uint16_t)strtoul(tok[10], NULL, 16);
+    cell_data->rsrp    = (int16_t)atoi(tok[12]);
 
-    QL_LOG_INFO(TAG, "Parsed QENG: MCC=%d MNC=%d CID=0x%X TAC=0x%X",
-               mcc, mnc, cell_data->cell_id, cell_data->tac);
+    QL_LOG_INFO(TAG, "QENG: MCC=%d MNC=%d CID=0x%X TAC=0x%X RSRP=%d dBm",
+                cell_data->mcc, cell_data->mnc,
+                cell_data->cell_id, cell_data->tac,
+                (int)cell_data->rsrp);
+    return 0;
+}
 
+// Convert UTC date+time components to Unix timestamp (seconds since 1970-01-01 00:00:00 UTC).
+// No dependency on system timezone or mktime().
+static uint32_t utc_to_unix(int year, int mon, int day, int h, int m, int s) {
+    static const uint8_t dim[12] = {31,28,31,30,31,30,31,31,30,31,30,31};
+    uint32_t days = 0;
+    int y;
+
+    for (y = 1970; y < year; y++)
+        days += ((y % 4 == 0) && (y % 100 != 0 || y % 400 == 0)) ? 366 : 365;
+
+    int leap = ((year % 4 == 0) && (year % 100 != 0 || year % 400 == 0));
+    for (int mo = 1; mo < mon; mo++) {
+        days += dim[mo - 1];
+        if (mo == 2 && leap) days++;
+    }
+    days += day - 1;
+
+    return days * 86400U + (uint32_t)h * 3600 + (uint32_t)m * 60 + (uint32_t)s;
+}
+
+/*
+ * Get current UTC Unix timestamp from the modem.
+ *
+ * Strategy:
+ *   1. AT+QLTS=1 — LTE network time (SIB16, synced from tower, no SIM needed)
+ *   2. AT+CCLK?  — internal RTC fallback (accurate only if previously synced)
+ *
+ * Sets *ts_out = 0 if time is unavailable or obviously invalid (year < 2025).
+ * A zero timestamp signals the server to use reading-index extrapolation instead.
+ *
+ * Response format: +QLTS: "YY/MM/DD,HH:MM:SS±ZZ,DST"
+ *   ZZ = timezone offset in quarter-hours (signed, e.g. +04 = UTC+1 for Spain CET)
+ */
+int modem_get_unix_time(uint32_t *ts_out) {
+    char response[128];
+    *ts_out = 0;
+
+    // Try network time first (available in LIMSRV mode via LTE SIB16)
+    int ok = at_cmd_send("AT+QLTS=1", response, sizeof(response), 2000);
+    if (ok != 0) {
+        // Fallback: internal RTC
+        ok = at_cmd_send("AT+CCLK?", response, sizeof(response), 1000);
+        if (ok != 0) {
+            QL_LOG_ERR(TAG, "Time unavailable (QLTS and CCLK failed)");
+            return -1;
+        }
+    }
+
+    // Find the quoted time string in the response
+    char *q = strchr(response, '"');
+    if (!q) {
+        QL_LOG_ERR(TAG, "Time parse error: no quote found in: %s", response);
+        return -1;
+    }
+    q++;  // skip opening quote
+
+    int yy, mo, dd, hh, mm, ss, tz_qh = 0;
+    char tz_sign = '+';
+
+    // Parse: "YY/MM/DD,HH:MM:SS±ZZ,..."
+    int n = sscanf(q, "%d/%d/%d,%d:%d:%d%c%d",
+                   &yy, &mo, &dd, &hh, &mm, &ss, &tz_sign, &tz_qh);
+    if (n < 6) {
+        QL_LOG_ERR(TAG, "Time parse error (got %d fields): %s", n, q);
+        return -1;
+    }
+
+    int year = 2000 + yy;
+    if (year < 2025) {
+        // RTC not initialized — modem booted without network time
+        QL_LOG_INFO(TAG, "Time invalid (year %d < 2025) — timestamp will be 0", year);
+        return 0;
+    }
+
+    // Convert local time to UTC: subtract timezone offset
+    uint32_t unix_local = utc_to_unix(year, mo, dd, hh, mm, ss);
+    int tz_seconds = tz_qh * 15 * 60;
+    uint32_t unix_utc = (tz_sign == '+')
+                        ? unix_local - (uint32_t)tz_seconds
+                        : unix_local + (uint32_t)tz_seconds;
+
+    *ts_out = unix_utc;
+    QL_LOG_INFO(TAG, "Time: %04d-%02d-%02d %02d:%02d:%02d UTC+%c%d/4 → Unix %lu",
+                year, mo, dd, hh, mm, ss, tz_sign, tz_qh, (unsigned long)unix_utc);
     return 0;
 }
 

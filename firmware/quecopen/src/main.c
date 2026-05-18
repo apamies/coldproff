@@ -17,16 +17,7 @@
 // Task handles
 ql_task_t main_task_ref = NULL;
 
-// Global state
-typedef struct {
-    uint16_t mcc, mnc, tac;
-    uint32_t cell_id;
-    int16_t rsrp;
-    int16_t temp_raw;  // TMP117 raw value
-    uint8_t measurement_count;
-} CellData_t;
-
-static CellData_t cell_data = {0};
+static CellData_t cell_data = {0};  // CellData_t defined in modem.h
 
 /*
  * Measurement cycle:
@@ -45,16 +36,20 @@ static void measurement_task(void *argv) {
     while (cycle < max_cycles) {
         QL_LOG_INFO(TAG, "[%d/56] Reading cell + sensor", cycle + 1);
 
-        // Step 1: Get cell info via AT+QENG
+        // Step 1: Get cell info + timestamp (modem already active, AT commands are cheap)
         if (modem_read_serving_cell(&cell_data) != 0) {
             QL_LOG_ERR(TAG, "Failed to read serving cell");
             goto sleep;
         }
 
-        QL_LOG_INFO(TAG, "Cell: MCC=%d MNC=%d LAC=0x%X CID=0x%X RSRP=%d",
+        // Get UTC time while modem is active (AT+QLTS=1 from LTE network)
+        // Sets cell_data.timestamp = 0 if time is unavailable — server extrapolates
+        modem_get_unix_time(&cell_data.timestamp);
+
+        QL_LOG_INFO(TAG, "Cell: MCC=%d MNC=%d TAC=0x%X CID=0x%X RSRP=%d ts=%lu",
                    cell_data.mcc, cell_data.mnc,
                    cell_data.tac, cell_data.cell_id,
-                   cell_data.rsrp);
+                   cell_data.rsrp, (unsigned long)cell_data.timestamp);
 
         // Step 2: Read temperature sensor
         if (sensor_read_temp(&cell_data.temp_raw) != 0) {

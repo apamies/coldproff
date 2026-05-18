@@ -1,198 +1,186 @@
-# ColdProff PCB Layout Guide — Flexible Kapton
+# ColdProff PCB Layout Guide — Rev B
 
-## Quick Reference — Pin Connections
-
-### BC660K-GL (QFN88) Pinout Summary
-
-**Essential pins for this design**:
-
-```
-BC660K-GL (QFN88 — viewed from top)
-
-         ┌──────────────────────┐
-      1  │ VDD                VDD │  88
-      2  │ GND                GND │  87
-      3  │ VCORE_RX      VCORE_TX │  86
-...
-     35  │ UART_RX         ANT    │  4
-     36  │ UART_TX         GND_ANT│  12
-...
-     48  │ I2C_SDA         I2C_SCL│  49
-     52  │ GPIO_A              ... │
-...
-     73  │ RESET_N             ... │
-      
-         └──────────────────────┘
-```
-
-**Minimal Connections**:
-
-| Function | BC660K Pin | Connected To | Via |
-|----------|-----------|--------------|-----|
-| Power | VDD (1,5,9,13,17,21,25,29) | 3.3V LDO | 100µF bulk cap |
-| Ground | GND (2,6,10,14,18,22,26,30) | Star GND | — |
-| Antenna | ANT (4,8) | NB-IoT IFA trace | 50Ω PCB trace |
-| UART RX | 35 | USB FTDI RXD | 3.3V TTL |
-| UART TX | 36 | USB FTDI TXD | 3.3V TTL |
-| I2C Data | 48 | TMP117 (pin 2) + ST25DV64K (pin 2) | 2.2kΩ pull-up |
-| I2C Clock | 49 | TMP117 (pin 3) + ST25DV64K (pin 3) | 2.2kΩ pull-up |
-| Wake IRQ | 52 | ST25DV64K RF_ACTIVITY (pin 9) | 100kΩ pull-down |
-| Reset | 73 | 10µF cap + 10kΩ pull-up | GND |
-
-### TMP117 (SOIC6 or DFN6) Pinout
-
-```
-      Pin 1 (GND) ──→ Star GND
-      Pin 2 (SDA) ──→ BC660K pin 48 (shared I2C bus)
-      Pin 3 (SCL) ──→ BC660K pin 49 (shared I2C bus)
-      Pin 4 (VDD) ──→ 3.3V + 100nF cap
-      Pin 5 (A0)  ──→ GND (fixed address 0x48)
-      Pin 6 (A1)  ──→ GND (fixed address 0x48)
-```
-
-### ST25DV64K (TSSOP14) Pinout
-
-```
-I2C Interface (E2 port):
-      Pin 1 (GND)      ──→ Star GND
-      Pin 2 (SDA)      ──→ BC660K pin 48 (shared I2C bus)
-      Pin 3 (SCL)      ──→ BC660K pin 49 (shared I2C bus)
-      Pin 4 (VDD)      ──→ 3.3V + 100nF cap
-
-NFC Interface (RF port):
-      Pin 5,6 (RF_IN)  ──→ NFC antenna coil (capacitive coupling)
-      Pin 7 (GND_RF)   ──→ Ground plane
-      Pin 8 (VDD_RF)   ──→ 3.3V (no extra cap needed)
-
-Interrupt:
-      Pin 9 (RF_ACTIVITY) ──→ BC660K pin 52 via 100kΩ pull-down
-```
-
-### LR936 Battery Holder
-
-```
-     Battery (+) ──→ [PTC Fuse 250mA] ──→ TPS70233 VIN
-     Battery (-) ──→ GND star point
-```
-
-### LDO Regulator TPS70233
-
-```
-     VIN  ──→ LR936 + fuse
-     GND  ──→ Star GND
-     VOUT ──→ 3.3V Rail
-     
-     C_IN  = 10µF (0603) from VIN to GND
-     C_OUT = 22µF (0603) from VOUT to GND
-     R_FB  = 200kΩ (if adjustable mode)
-```
-
-## PCB Stackup (Flexible)
-
-```
-┌─────────────────────────┐
-│ Layer 1: Traces & Parts │ ← Signal layer (components soldered here)
-├─────────────────────────┤
-│ Layer 2: Ground Plane   │ ← Solid ground reference
-├─────────────────────────┤
-│ Kapton Substrate        │ 50µm thickness
-└─────────────────────────┘
-```
-
-**Trace Width Guidelines**:
-- Power traces (3.3V from LDO to VDD): 0.5mm
-- I2C/UART: 0.3mm
-- Signal/antenna: varies (see below)
-
-## Critical Layout Rules
-
-1. **Battery holder**: Bottom edge, accessible for replacement
-2. **LDO & caps**: Immediately after battery (minimize high-current paths)
-3. **BC660K-GL decoupling**:
-   - 100µF bulk cap within 5mm of VDD pins
-   - 10µF ceramic caps on each corner of chip
-4. **I2C pull-ups**: Within 10mm of BC660K pins 48/49
-5. **NFC antenna**: Center of top side, 50×50mm spiral coil, **isolated from digital traces**
-6. **NB-IoT antenna (IFA)**: Edge of PCB, 83mm radiator, **clearance zone (no copper pour under it)**
-7. **TMP117 sensor**: Exposed area (open solder mask) on top for thermal coupling
-8. **ST25DV64K**: Close to NFC antenna for inductive coupling
-9. **Ground vias**: Frequent vias to ground plane below for EMI suppression
-
-## Antenna Designs (Copper Traces)
-
-### NFC Antenna — Printed Spiral Coil
-
-**Location**: Center of PCB, top layer  
-**Size**: 50×50mm (for 4-5cm read range)
-
-```
-        Feed point (tune cap here)
-             ↓
-        ┌────X────┐
-        │    │C    │
-        │  ┌─┴─┐  │
-        │  │   │  │  ← 5 turns (example)
-        │  │  spiral │
-        │  │  traces │
-        │  │  0.3mm  │
-        │  │  width  │
-        └──┴───────┘
-        
-        Gap: 0.2mm between turns
-        Tune capacitor: 100-150pF (parallel)
-```
-
-**Inductance target**: 4-6µH at 13.56 MHz  
-**Q-factor**: > 20
-
-### NB-IoT Antenna — Inverted-F (IFA)
-
-**Location**: Edge of PCB, top layer  
-**Band**: 8 (900 MHz, Orange Spain)
-
-```
-       Radiator arm (~83mm)
-             ↑
-             │
-        ┌────┐
-        │    │ Feed point (SMA or trace to pin 4/8)
-        │    │
-        │   ═══ Matching network (if needed)
-        │    │
-        └────┴────────────────
-            ▲
-       Ground plane connection
-       (via shorting pin)
-
-        Clearance zone (no copper pour):
-        40×20mm rectangle under IFA
-```
-
-**Electrical length**: λ/4 @ 900MHz = 83mm  
-**Impedance**: 50Ω (matched to BC660K RF port)
-
-## Manufacturing Notes
-
-**File format for PCB fabrication**:
-- Export as **Gerber RS-274X** (not PDF/image)
-- Include: Front copper, Back copper, Edge cuts, Silkscreen, Solder mask
-- Drill file: Excellon format
-
-**Vendor checklist**:
-- [ ] Flexible PCB material (Kapton/PI 50µm)
-- [ ] Copper weight: 1oz (35µm)
-- [ ] Surface finish: ENIG (Electroless Nickel Immersion Gold)
-- [ ] Min trace/space: 0.3mm
-- [ ] Via diameter: 0.3mm (plated through)
-- [ ] PSA (adhesive) applied to bottom layer post-assembly
-- [ ] Solder mask: Open areas for TMP117 thermal coupling
-
-**Typical Turnaround**:
-- Prototype: 10-15 days
-- Production (1000 units): 15-20 days
-- Cost: €0.50-0.70 per unit (qty 1k)
+**Revision**: 0.3 — 2026-05-18  
+**Tool**: KiCad 10.0  
+**Board**: 85 × 55 mm, 2 capas, FR4 rígida (prototipo) / Kapton FPC (producción)
 
 ---
 
-**Last updated**: 2026-05-17  
-**Ready for KiCAD import**
+## Cambio Rev B
+
+Respecto a Rev A (BC660K-GL):
+- El módulo BC65 **ocupa el mismo footprint LCC** que BC660K-GL (17.7×15.8mm, 61 pads LCC). Los pads del módulo no cambian — solo cambia el net assignment interno.
+- Se añade **STM32L010F4P6** (TSSOP-20, 6.5×4.4mm) cerca del BC65.
+- Las conexiones I2C, antenas NFC y NB-IoT no cambian.
+
+---
+
+## Footprints KiCad
+
+| Componente | Footprint KiCad sugerido |
+|---|---|
+| BC65 | `Quectel_BC65:BC65-LCC` (custom, igual que BC660K-GL) |
+| STM32L010F4P6 | `Package_SO:TSSOP-20_4.4x6.5mm_P0.65mm` |
+| TMP117 | `Package_SO:SOIC-8_3.9x4.9mm_P1.27mm` |
+| ST25DV64K | `Package_SO:SOIC-8_3.9x4.9mm_P1.27mm` |
+| TPS61221 | `Package_TO_SOT_SMD:SOT-23-5` |
+| Inductancia L1 | `Inductor_SMD:L_0402_1005Metric` |
+| C1,C3-C7 | `Capacitor_SMD:C_0402_1005Metric` |
+| C2 (tantalo) | `Capacitor_Tantalum_SMD:CP_EIA-3216-12_HandSoldering` |
+| R1,R2,R3 | `Resistor_SMD:R_0402_1005Metric` |
+| J1 (SWD) | `Connector_PinHeader_1.27mm:PinHeader_1x05_P1.27mm_Vertical` |
+| B1 (LR936) | `Battery:BatteryHolder_Keystone_3034_1x9.5mm` |
+
+---
+
+## Stackup (2 capas)
+
+| Capa | Función |
+|---|---|
+| F.Cu (Top) | Señal + componentes SMD |
+| B.Cu (Bottom) | Plano GND (casi completo), señal donde necesario |
+
+Reglas:
+- Traza mínima: 0.15 mm
+- Via mínima: 0.6 mm drill / 1.0 mm annular
+- Clearance: 0.15 mm
+- Power (3V3/GND): 0.5 mm
+- I2C / UART: 0.25 mm, longitud máx 30 mm
+
+---
+
+## Placement — Vista top (85 × 55 mm)
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                                                                     │
+│  [J1 SWD]    [B1 LR936]  [U1 TPS61221]                            │
+│   5p 1.27mm   9.5×3.6mm   SOT-23-5                                 │
+│                              L1  C1  C2                             │
+│                                                                     │
+│         ┌──────────────────┐    ┌──────────────────┐               │
+│         │  U3  BC65        │    │  U4  TMP117       │               │
+│         │  LCC 17.7×15.8   │    │  SOIC-8           │               │
+│         │  (NB-IoT modem)  │    │                   │               │
+│         │                  │    │  U5  ST25DV64K    │               │
+│         └──────────────────┘    │  SO8N (NFC+EEPROM)│               │
+│                                 └──────────────────┘               │
+│   [U2 STM32]                                                        │
+│   TSSOP-20                                                          │
+│   R1,R2 (I2C pullups)   R3 (UART)                                  │
+│                                                                     │
+│ ══════════ IFA NB-IoT (70×15mm, parte derecha, sin GND) ══════════ │
+│                                                                     │
+│ ╔══════════════════════════════════════════════════════╗           │
+│ ║  NFC coil spiral (6 vueltas 50×50mm, parte inferior)  ║           │
+│ ╚══════════════════════════════════════════════════════╝           │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Prioridades de placement
+
+1. **BC65** (U3): centrado-izquierda. ANT_MAIN conecta a IFA por la derecha.
+2. **STM32L010** (U2): junto a BC65, arriba-izquierda. PA2/PA3 cerca del BC65.
+3. **TMP117** (U4) y **ST25DV64K** (U5): lado derecho, I2C corto hacia U2.
+4. **TPS61221** (U1): cerca de la batería (arriba-izquierda).
+5. **NFC coil**: parte inferior del PCB, zona libre de ground pour.
+6. **J1 SWD**: borde del PCB, accesible con pinzas de pogo.
+
+---
+
+## Routing crítico
+
+### I2C (400 kHz)
+- SDA y SCL: traza 0.25mm, paralelas, separadas ≥0.3mm
+- Pull-ups R1/R2 (2.2kΩ): lo más cerca posible de U2 PB6/PB7
+- Longitud total: < 25mm (sin stub)
+- Evitar pasar bajo BC65 o IFA
+
+### UART STM32 ↔ BC65
+- PA2 (TX) → R3 (33Ω serie) → BC65 UART_RX
+- PA3 (RX) ← BC65 UART_TX
+- Traza 0.25mm, longitud < 20mm
+
+### Power (+3V3)
+- Traza 0.5mm de TPS61221 VOUT → C2 (tantalo cerca) → distribución
+- Via de GND bajo C2 tantalo a plano B.Cu
+- Decoupling 100nF en cada IC, lo más cerca posible de cada VDD pin
+
+### BC65 PWRKEY y STATUS
+- PWRKEY (PA1): traza 0.2mm directa, no requiere protección especial
+- STATUS (PA0): ídem
+
+---
+
+## Antena NB-IoT (IFA — Inverted F Antenna)
+
+- Área: 70 × 15 mm (esquina derecha del PCB)
+- **Keep-out zona F.Cu**: sin componentes SMD ni copper pour en 70×15mm
+- **Keep-out zona B.Cu**: sin GND pour en la proyección de la antena
+- Feed point: conectar a ANT_MAIN del BC65 con traza de impedancia 50Ω (~0.9mm en FR4 2-layer sin GND bajo)
+- Matching: π-network 50Ω (poblado en prototipo, ajustar con VNA)
+
+> El BC65 ya incluye circuito de matching interno en algunos bands. Verificar con datasheet BC65 Hardware Design.
+
+---
+
+## Antena NFC (Espiral diferencial 13.56 MHz)
+
+- Topología: 6 vueltas, espiral rectangular 50×50 mm
+- Traza: 0.35 mm, gap 0.20 mm
+- Capa: F.Cu
+- Conexiones: RF_A1 y RF_A2 del ST25DV64K (diferencial)
+- C_tune: 120 pF entre RF_A1 y RF_A2 (justo en los pads del ST25DV64K)
+- Sin ground pour bajo la bobina NFC (ambas capas, zona 50×50mm)
+- Colocar ST25DV64K en el centro de la bobina o junto a ella
+
+**Cálculo inductancia aproximada** (6 vueltas, 50×50mm):
+- L ≈ 3-4 µH → resonancia 13.56 MHz con C ≈ 33-100 pF
+- Ajustar C_tune con spectrum analyzer + smartphone como sonda
+
+---
+
+## Reglas de diseño KiCad (Board Setup)
+
+```
+Design Rules:
+  Min track width:     0.15 mm
+  Min via drill:       0.6 mm
+  Min via annular:     0.3 mm (pad total 1.0 mm)
+  Min clearance:       0.15 mm
+  Min hole to hole:    0.25 mm
+
+Net Classes:
+  Default: width=0.20mm, clearance=0.15mm
+  Power:   width=0.50mm, clearance=0.20mm
+  RF:      width=0.90mm (50Ω IFA feed), clearance=0.30mm
+```
+
+---
+
+## Gerbers para fabricación
+
+Exportar desde KiCad (Plot):
+- F.Cu, B.Cu (cobre)
+- F.Mask, B.Mask (soldermask)
+- F.Silks, B.Silks (serigrafía)
+- Edge.Cuts (contorno)
+- Excellon drill file
+
+JLCPCB / PCBWay: subir ZIP con todos los Gerbers.  
+Para prototipo FR4 estándar: 1.6mm, HASL, 2oz Cu.
+
+---
+
+## Bring-up sequence
+
+1. Alimentar solo desde banco (no LR936 aún): verificar 3.3V en rail
+2. Medir corriente estática (sin MCU programado): debe ser < 1mA
+3. Conectar ST-Link → programar STM32 con firmware debug
+4. Monitor UART debug (SWO o UART) → verificar init OK
+5. Verificar I2C: `sensor_init` y `nfc_init` deben retornar 0
+6. Verificar BC65: `modem_power_on()` → STATUS=HIGH, ATI responde
+7. Verificar LIMSRV: `AT+CEREG?` → stat=8
+8. Verificar NFC: tocar con teléfono → debe abrir URL
+9. Medir corriente en STOP mode (objetivo: < 20µA total)

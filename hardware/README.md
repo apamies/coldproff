@@ -1,257 +1,99 @@
-# ColdProff Hardware — KiCAD PCB Design
+# ColdProff Hardware
 
-## Overview
+**Status**: Rev B — BC65 + STM32L010F4P6  
+**Revision**: 0.3 — 2026-05-18
 
-Flexible PCB design for disposable temperature sensor label with NB-IoT geolocation and NFC readout.
+## Arquitectura
 
-- **Format**: KiCAD 6.0+ (open source, free)
-- **Size**: 85×55mm flexible Kapton PCB
-- **Layers**: 2 (signal + ground plane)
-- **Components**: 20 total (ultra-minimal BOM)
-- **Cost/unit**: €6.18 (at 1k quantity)
+Dos chips: **BC65** (módem NB-IoT, solo AT commands) + **STM32L010F4P6** (MCU host, gestiona sensores, sueño y AT commands al BC65). Antes se usaba BC660K-GL con QuecOpen (código en el módem); ahora BC65 es más barato y el STM32 hace el trabajo de aplicación.
 
-## Directory Structure
+## Componentes principales
+
+| Componente | Función | Package | Precio (250u) |
+|---|---|---|---|
+| BC65PB-04-STD | NB-IoT Cat-NB1, AT modem | LCC 17.7×15.8mm | €5.19 |
+| STM32L010F4P6 | Host MCU, I2C+UART+RTC | TSSOP-20 | €0.50 |
+| ST25DV64KC6 | NFC + EEPROM 8KB | SO8N | €0.85 |
+| TMP117MAIDRCR | Sensor temperatura ±0.1°C | SOIC-8 | €1.20 |
+| TPS61221DCKR | Boost 1.5V→3.3V | SOT-23-5 | €0.35 |
+| LR936 (Sony SR936) | Batería 1.5V 70mAh | 9.5×3.6mm | €0.06 |
+
+**BOM total estimado**: ~€8.54 a 250 unidades. A 1000u+: ~€7.50.
+
+## Archivos
 
 ```
 hardware/
-├── schematics/
-│   ├── coldproff.kicad_sch      (schematic file)
-│   ├── coldproff.kicad_prl      (project settings)
-│   └── symbols/                 (custom component symbols)
-├── layouts/
-│   ├── coldproff.kicad_pcb      (PCB layout)
-│   ├── coldproff.kicad_pro      (KiCAD project)
-│   └── footprints/              (custom footprints)
-├── gerbers/
-│   ├── *.gbr                    (Gerber files for manufacturing)
-│   ├── *.gto, *.gbo             (solder mask, silkscreen)
-│   ├── *.drl                    (drill file)
-│   └── README.md                (Gerber export settings)
-├── SCHEMATIC.md                 (Complete schematic specification)
-├── LAYOUT.md                    (PCB layout rules & antenna design)
-└── README.md                    (This file)
+├── SCHEMATIC.md    — Descripción completa de conexiones por componente
+├── LAYOUT.md       — Guía de PCB: placement, routing, antenas
+├── README.md       — Este fichero
+└── layouts/
+    └── coldproff/
+        ├── coldproff.kicad_pro
+        ├── coldproff.kicad_sch
+        └── coldproff.kicad_pcb
 ```
 
-## Getting Started
+## Cambios Rev B vs Rev A
 
-### 1. Install KiCAD
+| Cambio | Rev A (BC660K-GL) | Rev B (BC65 + STM32) |
+|---|---|---|
+| Módem | BC660K-GL QuecOpen | BC65 Cat-NB1 (AT only) |
+| MCU | Integrado en BC660K | STM32L010F4P6 separado |
+| Firmware | QuecOpen FreeRTOS | HAL bare-metal |
+| Precio módulo | ~€7.50 | BC65 €5.19 + STM32 €0.50 |
+| Ahorro neto | — | ~€1.80/u |
+| PCB footprint módulo | 17.7×15.8mm LCC | **idéntico** 17.7×15.8mm |
+| Área extra | — | +~60mm² (STM32 TSSOP-20) |
+| Corriente sleep | ~0.8µA (BC660K PSM) | ~4.4µA (BC65+STM32+boost) |
+| Margen batería | 26× | ~3× (LR936 70mAh) |
 
-**Windows/Mac/Linux**: 
-- Download: [kicad.org](https://kicad.org/download)
-- Version: 6.0.x or later (6.0.11+ recommended for stability)
-- Installation size: ~300MB
+> ⚠️ **Nota de consumo**: El boost TPS61221 (15 µA quiescent) domina el reposo. Con BC660K el PSM del módulo era solo 0.8µA; con BC65 (3µA) + STM32 (1.35µA) el total sube a ~19µA. El margen baja de 26× a ~3×. Sigue siendo válido para 7 días, pero considerar:
+> - Boost con quiescent menor (e.g. TPS61099: 5µA)
+> - O escalar a CR2032 (220mAh) si el footprint lo permite
 
-### 2. Open Project
+## Power budget (7 días)
 
-```bash
-cd hardware/layouts/
-kicad coldproff.kicad_pro
-```
+| Estado | I (µA) | Tiempo | Energía |
+|---|---|---|---|
+| Boost quiescent | 15 | 168h | 2.52mAh |
+| BC65 PSM | 3 | 168h | 0.50mAh |
+| STM32 STOP | 1.35 | 168h | 0.23mAh |
+| BC65 activo | 25,000 | 56×30s = 0.47h | 11.7mAh |
+| STM32 activo | 2,000 | 0.47h | 0.94mAh |
+| **Total** | | | **~16mAh** |
+| LR936 (70mAh) | | | **~4.4× margen** |
 
-### 3. Schematic View
+## PCB
 
-- Open `File → Open → coldproff.kicad_sch`
-- View all connections: BC660K-GL, TMP117, ST25DV64K, power supply
-- Edit symbols: `Tools → Manage Symbols`
+- **Dimensiones**: 85 × 55 mm (tarjeta)
+- **Material**: Kapton flexible (FPC) o FR4 rígida para prototipo
+- **Capas**: 2 capas
+- **BC65**: mismo footprint LCC que BC660K-GL — los pads no cambian, solo las conexiones
+- **STM32**: nuevo componente TSSOP-20 (~6.5 × 4.4mm)
+- **Antena NB-IoT**: IFA en traza PCB (70×15mm keep-out sin ground pour)
+- **Antena NFC**: espiral 6 vueltas, 50×50mm, traza 0.35mm
 
-### 4. PCB Layout
+## Programación
 
-- Open `File → Open → coldproff.kicad_pcb`
-- Visible layers: Front copper (F.Cu), Back copper (B.Cu), Ground plane
-- Component placement: optimized for thermal and EMI
-- Trace routing: all critical paths pre-routed
+### STM32 (vía J1 SWD)
+- ST-Link v2 o cualquier debugger SWD
+- STM32CubeProgrammer / OpenOCD
+- Header J1: VCC, SWDIO, GND, SWDCLK, NRST
 
-### 5. Generate Manufacturing Files
+### BC65 (firmware update)
+- Puerto UART del BC65 accesible vía TP1/TP2 (test points)
+- Herramienta: Quectel QFlash (Windows)
+- El firmware de producción viene preinstalado de fábrica
 
-**Gerber Export**:
-```
-File → Plot... 
-  - Plot format: Gerber (RS-274X)
-  - Copper layers: Front & Back
-  - Technical layers: Solder mask, Silkscreen, Edge cuts
-  - Drill file: Excellon format
-  - Output directory: gerbers/
-```
+## Checklist de bring-up
 
-**Output files**:
-- `*.F.Cu` — Front copper (components)
-- `*.B.Cu` — Back copper (ground plane)
-- `*.F.SilkS` — Front silkscreen
-- `*.B.SilkS` — Back silkscreen
-- `*.F.Mask` — Front solder mask (open areas)
-- `*.B.Mask` — Back solder mask
-- `*.Edge.Cuts` — PCB outline
-- `*.drl` — Drill file
-
-## Design Specifications
-
-### Electrical
-
-| Parameter | Value |
-|-----------|-------|
-| Supply voltage | 1.5V (LR936 battery) |
-| Regulated output | 3.3V (TPS70233 LDO) |
-| Main MCU | BC660K-GL QFN88 |
-| Temp sensor | TMP117 (I2C 0x48) |
-| NFC/EEPROM | ST25DV64K (I2C 0x50) |
-| I2C bus | 400kHz, 2 slaves max |
-| UART | 115200 baud (debug/firmware upload) |
-
-### Mechanical
-
-| Parameter | Value |
-|-----------|-------|
-| PCB size | 85×55mm |
-| PCB thickness | 50µm Kapton (flexible) |
-| Copper weight | 1oz (35µm) |
-| Min trace width | 0.3mm |
-| Min clearance | 0.2mm |
-| Via diameter | 0.3mm |
-| Component height | < 3mm (except battery holder) |
-
-### Thermal
-
-| Component | Operating Temp | Notes |
-|-----------|---|---|
-| BC660K-GL | -20 to +60°C | Industrial grade |
-| TMP117 | -20 to +60°C | ±0.1°C accuracy |
-| ST25DV64K | -20 to +60°C | NFC safe |
-| LR936 battery | -20 to +60°C | Alkaline battery |
-
-### Power Budget
-
-| Stage | Duration | Current | Energy |
-|-------|----------|---------|--------|
-| PSM Sleep | 3h - 2s | 0.8µA | 2.4µAh |
-| AT+QENG Read | 2s | 80mA | 44.4µAh |
-| Sensor + NFC write | ~100ms | 50-100µA | ~1.4µAh |
-| **Per 3h cycle** | — | — | **~47µAh** |
-| **7 days (56 cycles)** | — | — | **2.62 mAh** |
-| **Available (LR936)** | — | — | **70 mAh** |
-| **Safety margin** | — | — | **26.7x** ✓ |
-
-## Component Selection Notes
-
-### BC660K-GL NB-IoT SoC
-
-- **Why**: Smallest NB-IoT module available (~14mm), QuecOpen embedded programmable
-- **Cost**: €3.50/unit (high volume)
-- **Key pins**: 88-pin QFN, 0.5mm pitch (fine but manageable)
-- **Alternatives**: BC660K (same), BC662K (with GNSS, larger)
-
-### TMP117 Temperature Sensor
-
-- **Why**: Best accuracy (±0.1°C), I2C simple, low power
-- **Cost**: €1.20/unit
-- **I2C address**: 0x48 (fixed, no address pins to configure)
-- **Alternatives**: TMP106 (simpler but ±0.5°C), TMP102 (older but common)
-
-### ST25DV64K NFC Chip
-
-- **Why**: Dual-port (I2C + NFC), eliminates separate EEPROM, integrated Type 4 Tag
-- **Cost**: €0.80/unit
-- **I2C address**: 0x50 (fixed)
-- **NFC**: 13.56MHz ISO/IEC 14443 Type 2
-- **EEPROM**: 8KB user-accessible (7KB practical after NDEF headers)
-- **Alternatives**: NTAG216 (simpler, smaller), ST25TV (temperature sensor integrated)
-
-### LR936 Battery
-
-- **Why**: Smallest viable option (9.5×3.6mm), 26.7x safety margin, €0.06/unit
-- **Chemistry**: Alkaline (1.5V nominal, decays to ~0.9V at end-of-life)
-- **Capacity**: 70mAh
-- **Alternatives**: LR1120 (180mAh, €0.10), LR44 (120mAh, €0.08)
-
-### TPS70233 LDO Regulator
-
-- **Why**: Boost converter 1.5V→3.3V, integrated, small
-- **Cost**: €0.25/unit
-- **Features**: Low quiescent current (~50µA)
-- **Alternatives**: SPX1117 (requires more external components)
-
-## Design Challenges & Solutions
-
-### Challenge 1: Tight layout (85×55mm)
-
-**Solution**: 
-- Component density optimized (0603 passives, QFN for MCU)
-- 2-layer PCB (ground plane as reference)
-- Flexible substrate allows compact form factor
-
-### Challenge 2: Antenna integration
-
-**Solution**:
-- NFC antenna: Spiral coil printed on PCB (no separate coil)
-- NB-IoT antenna: Inverted-F on PCB edge (printed trace)
-- Both embedded in Kapton = no discrete antenna components
-
-### Challenge 3: Thermal measurement through adhesive
-
-**Solution**:
-- TMP117 mounted on top (exposed side of label)
-- Open solder mask area over sensor (minimal thermal barrier)
-- Sensor dome faces outward for direct contact
-
-### Challenge 4: NFC range through label
-
-**Solution**:
-- 50×50mm spiral coil (larger for better coupling)
-- Tuning capacitor (100-150pF) for impedance match
-- ST25DV64K directly coupled under coil (inductive transmission)
-
-## Testing Checklist
-
-After layout & PCB fabrication:
-
-- [ ] **Continuity test**: All traces connected as per schematic
-- [ ] **Voltage test**: 3.3V on all VDD rails, 0V on GND
-- [ ] **I2C scan**: `i2cdetect -y 1` shows devices at 0x48 (TMP117) and 0x50 (ST25DV64K)
-- [ ] **Temperature read**: `i2cget -y 1 0x48 0x00 w` returns temp value
-- [ ] **UART echo**: Connect FTDI, send "ATI" → see "Quectel EC25..."
-- [ ] **NFC read**: Phone tap on label → reads data via NFC
-- [ ] **Battery life**: Measure PSM current (~800nA on multimeter)
-
-## References
-
-### Datasheets
-
-- [BC660K-GL](https://www.quectel.com/product) — NB-IoT modem
-- [TMP117](https://www.ti.com/product/TMP117) — Temperature sensor
-- [ST25DV64K](https://www.st.com/resource/en/datasheet/st25dv64k.pdf) — NFC + EEPROM
-- [TPS70233](https://www.ti.com/product/TPS70233) — 1.5V→3.3V boost regulator
-
-### Tools
-
-- [KiCAD](https://kicad.org) — Schematic + PCB design
-- [GerbView](https://kicad.org) — Gerber viewer (built into KiCAD)
-- [IPC-2221](https://www.ipc.org/standards/design) — PCB design standards
-- [Saturn PCB Toolkit](https://www.saturnpcb.com) — Trace impedance calculator
-
-### Manufacturers
-
-- **PCB Flexible**: Würth Elektronik, DPL, EUTEC, NCAB Group
-- **Assembly**: Oshpark (prototype), PCBWay (low-volume), JLCPCB (fast)
-- **Components**: Digi-Key, Mouser, RS Components (bulk suppliers)
-
-## Next Steps
-
-1. **Import this design into KiCAD**
-2. **Verify schematic** against SCHEMATIC.md
-3. **Route PCB** following LAYOUT.md guidelines
-4. **Generate Gerbers** for PCB vendor
-5. **Order prototype** (1-2 units for testing)
-6. **Assembly** & testing
-7. **Firmware testing** with modem module
-
-## Support
-
-For design questions:
-- KiCAD documentation: https://docs.kicad.org
-- Community forums: https://kicad.info
-- Quectel support: https://www.quectel.com/support
-
----
-
-**Last updated**: 2026-05-17  
-**Status**: Specification complete, ready for KiCAD implementation  
-**Version**: 1.0
+- [ ] Verificar 3.3V en rail (medir después de boost)
+- [ ] Verificar ST25DV64K en I2C: `0xA0` ACK a 400kHz
+- [ ] Verificar TMP117 en I2C: `0x90` ACK, leer reg 0x0F = 0x0117
+- [ ] Verificar BC65: pulso PWRKEY, STATUS=HIGH, `ATI` responde
+- [ ] Verificar `AT+CEREG?` devuelve stat=8 (LIMSRV) sin SIM
+- [ ] Verificar `AT+QENG="servingcell"` devuelve CID hex válido
+- [ ] Verificar RTC STM32 retiene hora en STOP mode (medir con osciloscopio)
+- [ ] Verificar NFC: teléfono Android lee URL desde ST25DV64K
+- [ ] Medir corriente en reposo (objetivo: <20µA)
