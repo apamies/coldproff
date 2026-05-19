@@ -3336,12 +3336,12 @@
 			)
 		)
 	)
-	(footprint "Quectel_BC66"
+	(footprint "Quectel_BC65:Quectel_BC65"
 		(layer "F.Cu")
 		(uuid "d0fca762-2e98-4546-8690-78002069c3a1")
 		(at 17 27 90)
-		(descr "GSM NB-IoT module, 15.8x17.7x2mm, https://www.quectel.com/UploadImage/Downlad/Quectel_BC66_Hardware_Design_V1.1.pdf")
-		(tags "GSM NB-IoT Module BC66 M66")
+		(descr "NB-IoT module BC65PB-04-STD, 15.8x17.7x2mm LCC-58, https://www.quectel.com/content/uploads/2024/02/Quectel_BC65_Hardware_Design_V1.0-1.pdf")
+		(tags "NB-IoT BC65 LCC-58")
 		(property "Reference" "U3"
 			(at 0 -12.6 90)
 			(layer "F.SilkS")
