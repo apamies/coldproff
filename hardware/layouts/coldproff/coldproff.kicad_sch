@@ -407,7 +407,7 @@
 	)
 	(symbol (lib_id "PWR:GND") (at 91.44 129.11 0) (unit 1) (in_bom no) (on_board no) (uuid 1a2b3c4d-0006-0001-0000-000000000006)
 		(property "Reference" "#PWR06" (at 91.44 129.11 0) (effects (font (size 1.27 1.27)) (hide yes)))
-		(property "Value" "GND" (at 91.44 135.46 0) (effects (font (size 1.27 1.27)) (justify right) (hide yes))))
+		(property "Value" "GND" (at 91.44 135.46 0) (effects (font (size 1.27 1.27)) (justify right) (hide yes)))
 	)
 	(symbol (lib_id "PWR:+3V3") (at 159.76 134.84 0) (unit 1) (in_bom no) (on_board no) (uuid 1a2b3c4d-0006-0001-0000-000000000007)
 		(property "Reference" "#PWR07" (at 159.76 134.84 0) (effects (font (size 1.27 1.27)) (hide yes)))
