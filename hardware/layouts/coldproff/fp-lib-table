@@ -1,0 +1,4 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "Quectel_BC65") (type "KiCad") (uri "${KIPRJMOD}/Quectel_BC65.pretty") (options "") (descr "Quectel BC65 NB-IoT LCC-58 footprint"))
+)

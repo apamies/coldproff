@@ -18,6 +18,8 @@ firmware/**/.dep/
 hardware/**/*.kicad_sch~
 hardware/**/*.kicad_pcb~
 hardware/**/*.kicad_pcb-bak
+hardware/**/.history/
+hardware/**/~*.lck
 mechanical/**/*.FCStd~
 mechanical/**/*.FCStd1
 
